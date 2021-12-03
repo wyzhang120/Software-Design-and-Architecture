@@ -3,23 +3,49 @@ This repo aims to track my notes of software design and architecture.
 
 ## SOLID Principles
 
-Refer this [course][solid_principles_course] and [repo][solid_demo] by [Steve Smith]([ardalis (Steve Smith) (github.com)](https://github.com/ardalis)) for more details.
+Refer this [course][solid_principles_course] and [repo][solid_demo] by [Steve Smith](https://github.com/ardalis) for more details.
 
 - Single responsibility
+
 - Open-close
+
 - Liskov substitution
+
 - Interface segregation
+
 - Dependency inversion
+
+  Relevant concepts are IoC (inversion of control) container, DI (dependency injection) strategy pattern.
+  
+  ![SOLID principles](Figures/SOLID_principles.png "Title")
+  
+  
+  
+  *Figure* 1 Relationships between SOLID principles  ([Steve Smith][solid_principles_course])
+  
+  
 
 ## Domain Driven Design
 
-### Domain object
+### Bounded context
+
+ubiquitous language
+
+### Entity
+
+
 
 ### Value object
 
+
+
 ### Aggregate
 
+
+
 ### Domain events
+
+
 
 ## Design Patterns
 

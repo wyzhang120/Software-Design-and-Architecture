@@ -17,7 +17,7 @@ Refer this [course][solid_principles_course] and [repo][solid_demo] by [Steve Sm
 
   Relevant concepts are IoC (inversion of control) container, DI (dependency injection) strategy pattern.
   
-  ![SOLID principles](./Figures/SOLID_principles.png)
+  ![SOLID principles](./Figures/SOLID_principles.PNG)
   
   
   

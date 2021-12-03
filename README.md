@@ -73,5 +73,5 @@ var rater = _raterFactory.Create(policy);
 
 
 [solid_principles_course]: https://app.pluralsight.com/library/courses/csharp-solid-principles/table-of-contents	"C# SOLID Principles"
-[solid_demo]: https://github.com/ardalis/SolidSample " "SOLID demo"
+[solid_demo]: https://github.com/ardalis/SolidSample " SOLID demo"
 

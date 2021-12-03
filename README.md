@@ -15,6 +15,9 @@ Refer this [course][solid_principles_course] and [repo][solid_demo] by [Steve Sm
 
 - Dependency inversion
 
+  - High-level modules should not depend on low-level modules. Both should depend on abstractions.
+  - Abstractions should not depend on details, but the other way around.
+  
   Relevant concepts are IoC (inversion of control) container, DI (dependency injection) strategy pattern.
   
   ![SOLID principles](./Figures/SOLID_principles.PNG)

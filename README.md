@@ -89,6 +89,18 @@ Refer to the [DDD fundamentals][ddd-fundamental] and [DDD in practice][ddd in pr
 
   *Figure* Structure of the anti corruption layer  (Evans, 2003)
 
+  <img src="Figures/CommBtwBCs.PNG" style="zoom:50%;" />
+
+  *Figure* Communication between bounded contexts ([Khorikov][ddd in practice]). When two bounded contexts are deployed as individual processes, they are microservices and communicate through RSET API calls or message queues. When two bounded contexts run within a single process, they communicate via the proxy (anti corruption layer) or domain events.
+
+- Domain services
+
+  Domain services contain domain login and possess knowledge that doesn't belong to entities and value objects. They don't have state.
+
+- Application services
+
+  Application services are outside of the domain layer. They communicate with the outside world and don't contain domain logic.
+
 ### Entity
 
 It has an ID. The base entity should be an abstract class rather than an interface. Object equality is determined by reference equality and identifier equality. States of entities are due to change through their lifecycle. Therefore, it is good practice to delegate behaviors of entities to value objects as much as possible, since VOs are immutable and easier to work with.
@@ -192,6 +204,41 @@ An aggregate has a collection of entities. It holds some *invariants* to reside 
 - An aggregate is persisted in a transactional manner.
 
 ### Domain events
+
+An aggregate root entity creates an event; the infrastructure dispatches the event. Be cautious on when to handle events, pre- vs post- persistence.
+
+```c#
+public static class DomainEvents
+    {
+        private static List<Type> _handlers;
+
+        public static void Init()
+        {
+            _handlers = Assembly.GetExecutingAssembly()
+                .GetTypes()
+                .Where(x => x.GetInterfaces().Any(
+                    y => y.IsGenericType && y.GetGenericTypeDefinition() == typeof(IHandler<>)))
+                .ToList();
+        }
+
+        public static void Dispatch(IDomainEvent domainEvent)
+        {
+            foreach (Type handlerType in _handlers)
+            {
+                bool canHandleEvent = handlerType.GetInterfaces()
+                    .Any(x => x.IsGenericType
+                        && x.GetGenericTypeDefinition() == typeof(IHandler<>)
+                        && x.GenericTypeArguments[0] == domainEvent.GetType());
+
+                if (canHandleEvent)
+                {
+                    dynamic handler = Activator.CreateInstance(handlerType);
+                    handler.Handle((dynamic)domainEvent);
+                }
+            }
+        }
+    }
+```
 
 
 

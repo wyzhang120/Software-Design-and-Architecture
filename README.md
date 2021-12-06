@@ -205,7 +205,7 @@ An aggregate has a collection of entities. It holds some *invariants* to reside 
 
 ### Domain events
 
-An aggregate root entity creates an event; the infrastructure dispatches the event. Be cautious on when to handle events, pre- vs post- persistence.
+An aggregate root entity creates an event; the infrastructure dispatches the event. Be cautious on when to handle events, pre- vs post- persistence. Relevant concepts: [mediator pattern][mediator pattern], [event sourcing pattern][event sourcing]
 
 ```c#
 public static class DomainEvents
@@ -340,4 +340,5 @@ Command Query Responsibility Segregation (CQRS) is a pattern that separates read
 [clean-architecture]: https://github.com/ardalis/CleanArchitecture "Clean architecture"
 [ddd in practice]: https://app.pluralsight.com/library/courses/domain-driven-design-in-practice/table-of-contents "DDD in practice"
 [cqrs]: https://docs.microsoft.com/en-us/azure/architecture/patterns/cqrs "CQRS pattern"
-[onion architecture]: 
+[mediator pattern]: https://refactoring.guru/design-patterns/mediator
+[event sourcing pattern]: https://docs.microsoft.com/en-us/azure/architecture/patterns/event-sourcing

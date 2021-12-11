@@ -382,7 +382,15 @@ Command Query Responsibility Segregation (CQRS) is a pattern that separates read
 
 *Figure* CQRS ([Microsoft Docs][cqrs])
 
+##### CQRS vs CQS
 
+CQRS ([Greg Young, 2010][greg young]) originates from CQS (command query separation, Bertrand Meyer). In CQS, commands produce side-effects (change state of the system) and return void. Queries have no side-effect and return non-void. CRQS further separates the   read/write models.
+
+<img src="Figures/CQS_vs_CQRS1.PNG" alt="CQS vs CQRS1" style="zoom:50%;" />
+
+<img src="Figures/CQS_vs_CQRS2.PNG" alt="CQS vs CQRS2" style="zoom:50%;" />
+
+*Figure* CQS vs CQRS ([Vladimir Khorikov][cqrs in practice])
 
 ## References
 
@@ -393,6 +401,8 @@ Command Query Responsibility Segregation (CQRS) is a pattern that separates read
 2. Evans, E.,  2003. Domain driven design: tackling complexity in the heart of software. Addison-Wesley.
 2. [DDD in practice][ddd in practice]
 2. [Demo code for factory pattern][factory pattern]
+2. [CQRS in practice][cqrs in practice]
+2. Young, G., 2010. [CQRS documents][greg young]
 
 
 
@@ -408,3 +418,5 @@ Command Query Responsibility Segregation (CQRS) is a pattern that separates read
 [factory pattern]: https://github.com/wyzhang120/c-sharp-design-patterns-factory-abstract "factory pattern"
 [factory method]: https://refactoring.guru/design-patterns/factory-method
 [abstract factory]: https://refactoring.guru/design-patterns/abstract-factory
+[cqrs in practice]: https://app.pluralsight.com/library/courses/cqrs-in-practice/table-of-contents	" CQRS in practice"
+[greg young]: https://cqrs.files.wordpress.com/2010/11/cqrs_documents.pdf

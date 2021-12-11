@@ -248,6 +248,36 @@ Refer to this [catalog](https://refactoring.guru/design-patterns/catalog) and [c
 
 ### Factory
 
+#### Factory method pattern
+
+Factory method is a creational design pattern that provides an interface for creating objects in a superclass, but allows subclasses to alter the type of objects that will be created ([refactoring guru][factory method]). The following code snippet by [Fillip Ekberg][factory pattern] demonstrates how to create a base factory that generates various shipping providers . A base factory class defines an abstract method  `CreateShippingProvider` to be implemented by concreate shipping providers; `GetShippingProvider` provides access to the created object.
+
+```c#
+public abstract class ShippingProviderFactory
+    {
+        public abstract ShippingProvider CreateShippingProvider(string country);
+
+        public ShippingProvider GetShippingProvider(string country)
+        {
+            var provider = CreateShippingProvider(country);
+
+            if (country == "Sweden" && 
+                provider.InsuranceOptions.ProviderHasInsurance)
+            {
+                provider.RequireSignature = false;
+            }
+
+            return provider;
+        }
+    }
+```
+
+#### Abstract factory
+
+Abstract Factory is a creational design pattern that lets you produce families of related objects without specifying their concrete classes ([refactorying.guru][abstract factory]). A couple of creational methods are bundled in an abstract factory interface.
+
+#### Implement factory pattern via reflection
+
 This code snippet comes from the [SOLID principle demo code][solid_demo]. It shows how to implement a factory pattern via reflection (`Activator` class in C#) which eliminates the usage of `switch` clause. The `ArdalisRating` namespace has a couple of policy rater classes: `AutoPolicyRater`,`LandPolicyRater`,`LifePolicyRater`, etc. Constructors of the policy rater has one argument, an `ILogger` instance.
 
 ```c#
@@ -283,6 +313,38 @@ string policyJson = _policySource.GetPolicyFromSource();
 var policy = _policySerializer.GetPolicyFromString(policyJson);
 var rater = _raterFactory.Create(policy);
 ```
+
+Another example from [Phillip Ekberg's repo][factory pattern]. In the constructor, it loops over the assembly and finds all concreate class that implements the `IPurchaseProviderFactory` interface. `CreateFactoryFor` takes in a string and uses an `activator`to create a `PurchaseProviderFactory`.
+
+```c#
+public class PurchaseProviderFactoryProvider
+    {
+        private IEnumerable<Type> factories;
+
+        public PurchaseProviderFactoryProvider()
+        {
+            factories = Assembly.GetAssembly(typeof(PurchaseProviderFactoryProvider))
+                .GetTypes()
+                .Where(t => typeof(IPurchaseProviderFactory)
+                .IsAssignableFrom(t));
+        }
+    
+        public IPurchaseProviderFactory CreateFactoryFor(string name)
+        {
+            var factory = factories
+                .Single(x => x.Name.ToLowerInvariant()
+                .Contains(name.ToLowerInvariant()));
+
+            var instance = 
+                (IPurchaseProviderFactory)Activator
+                .CreateInstance(factory);
+
+            return instance;
+        }
+    }
+```
+
+
 
 ### Repository
 
@@ -330,6 +392,7 @@ Command Query Responsibility Segregation (CQRS) is a pattern that separates read
 2. [Clean architecture][clean-architecture]
 2. Evans, E.,  2003. Domain driven design: tackling complexity in the heart of software. Addison-Wesley.
 2. [DDD in practice][ddd in practice]
+2. [Demo code for factory pattern][factory pattern]
 
 
 
@@ -342,3 +405,6 @@ Command Query Responsibility Segregation (CQRS) is a pattern that separates read
 [cqrs]: https://docs.microsoft.com/en-us/azure/architecture/patterns/cqrs "CQRS pattern"
 [mediator pattern]: https://refactoring.guru/design-patterns/mediator
 [event sourcing pattern]: https://docs.microsoft.com/en-us/azure/architecture/patterns/event-sourcing
+[factory pattern]: https://github.com/wyzhang120/c-sharp-design-patterns-factory-abstract "factory pattern"
+[factory method]: https://refactoring.guru/design-patterns/factory-method
+[abstract factory]: https://refactoring.guru/design-patterns/abstract-factory

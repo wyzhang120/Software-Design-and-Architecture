@@ -384,13 +384,63 @@ Command Query Responsibility Segregation (CQRS) is a pattern that separates read
 
 ##### CQRS vs CQS
 
-CQRS ([Greg Young, 2010][greg young]) originates from CQS (command query separation, Bertrand Meyer). In CQS, commands produce side-effects (change state of the system) and return void. Queries have no side-effect and return non-void. CRQS further separates the   read/write models.
-
-<img src="Figures/CQS_vs_CQRS1.PNG" alt="CQS vs CQRS1" style="zoom:50%;" />
+CQRS ([Greg Young, 2010][greg young]) originates from CQS (command query separation, Bertrand Meyer). In CQS, commands are produce side-effects (change state of the system) and return void. Queries have no side-effect and return non-void. CRQS further separates the read/write models. Commands in CQRS are serializable method calls. <img src="Figures/CQS_vs_CQRS1.PNG" alt="CQS vs CQRS1" style="zoom:50%;" />
 
 <img src="Figures/CQS_vs_CQRS2.PNG" alt="CQS vs CQRS2" style="zoom:50%;" />
 
 *Figure* CQS vs CQRS ([Vladimir Khorikov][cqrs in practice])
+
+The code snippets below ([CQRS in practice][cqrs in practice]) compare commands in CQS and CQRS.
+
+CQS command example, a controller method.
+
+```c#
+[HttpPut("{id}")]
+public IActionResult EditPersonalInfo(long id, [FromBody] StudentPersonalInfoDto dto)
+{
+    ...
+}
+```
+
+CQRS command, a custom class named in imperative tense
+
+```c#
+public sealed class EditPersonalInfoCommand: ICommand
+{
+    public long Id {get; set;}
+    public string Name {get; set}
+    public string Email {get; set}
+}
+```
+
+Interfaces for CQRS command and command handler. `Result` is a custom class that has Http-like status code.
+
+```c#
+public interface ICommand
+{
+}
+
+public interface ICommandHandler<TCommand> where TCommand : ICommand
+{
+    Result Handle(TCommand command);
+}
+```
+
+##### Commands, Queries, and Events
+
+Commands, queries, and events are all messages which are all part of the core domain.
+
+| Commands                             | Queries                             | Events                       |
+| ------------------------------------ | ----------------------------------- | ---------------------------- |
+| Tell the application to do something | Ask the application about something | Inform external applications |
+| Imperative tense                     | Start with "Get"                    | Past tense                   |
+| `EditPersionalInfoCommand`           | `GetListQuery`                      | `PersonalInfoChangedEvent`   |
+
+Another distinction between command and event is that a server can reject a command but not an event.
+
+<img src="Figures/CommandEventInOnion.PNG" style="zoom:50%;" />
+
+*Figure* Command and event in the onion architecture. Command and events are part of the core domain layer, whereas command handlers reside in the application services layer.
 
 ## References
 

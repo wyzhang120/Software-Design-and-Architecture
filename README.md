@@ -207,6 +207,8 @@ An aggregate has a collection of entities. It holds some *invariants* to reside 
 
 An aggregate root entity creates an event; the infrastructure dispatches the event. Be cautious on when to handle events, pre- vs post- persistence. Relevant concepts: [mediator pattern][mediator pattern], [event sourcing pattern][event sourcing]
 
+The following code snippet from [DDD in practice][ddd in practice] demonstrates handling events via reflection.
+
 ```c#
 public static class DomainEvents
     {

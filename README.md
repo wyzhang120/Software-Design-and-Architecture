@@ -444,6 +444,56 @@ Another distinction between command and event is that a server can reject a comm
 
 *Figure* Command and event in the onion architecture. Command and events are part of the core domain layer, whereas command handlers reside in the application services layer.
 
+##### Implement command handlers via reflection, DI container, and dynamic class
+
+The following code snippet from [CQRS in practice][cqrs in practice] demonstrates how to implement a command handler that can address all types of commands. The key is to leverage DI container, reflection, and dynamic class.
+
+- `ISerivedProvider` interface provides a way to access class registered in the DI container
+- `type.MakeGenericType(typeArgs)` demonstrates how to create a generic command handler via reflection
+- `dynamic handler` enables the `Message` class to address all types of command handlers. 
+
+
+
+```c#
+public sealed class Messages
+    {
+        private readonly IServiceProvider _provider;
+
+        public Messages(IServiceProvider provider)
+        {
+            _provider = provider;
+        }
+
+        public Result Dispatch(ICommand command)
+        {
+            Type type = typeof(ICommandHandler<>);
+            Type[] typeArgs = { command.GetType() };
+            Type handlerType = type.MakeGenericType(typeArgs);
+
+            dynamic handler = _provider.GetService(handlerType);
+            Result result = handler.Handle((dynamic)command);
+
+            return result;
+        }
+
+        public T Dispatch<T>(IQuery<T> query)
+        {
+            Type type = typeof(IQueryHandler<,>);
+            Type[] typeArgs = { query.GetType(), typeof(T) };
+            Type handlerType = type.MakeGenericType(typeArgs);
+
+            dynamic handler = _provider.GetService(handlerType);
+            T result = handler.Handle((dynamic)query);
+
+            return result;
+        }
+    }
+```
+
+
+
+
+
 ## References
 
 1. [C# SOLID Principles][solid_principles_course]

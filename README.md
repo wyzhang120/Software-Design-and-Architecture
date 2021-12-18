@@ -350,7 +350,9 @@ public class PurchaseProviderFactoryProvider
 
 ### Repository
 
-Repositories let client work operate on data without concerning how data is persisted, as if data were in memory. One repository per each aggreagate.
+Relevant concepts: repository pattern, unit of work, lazy loading.
+
+Repositories let client work operate on data without concerning how data is persisted, as if data were in memory. One repository per each aggregate.
 
 ```c#
 public abstract class Repository<T>
@@ -384,7 +386,7 @@ Command Query Responsibility Segregation (CQRS) is a pattern that separates read
 
 *Figure* CQRS ([Microsoft Docs][cqrs])
 
-##### CQRS vs CQS
+#### CQRS vs CQS
 
 CQRS ([Greg Young, 2010][greg young]) originates from CQS (command query separation, Bertrand Meyer). In CQS, commands are produce side-effects (change state of the system) and return void. Queries have no side-effect and return non-void. CRQS further separates the read/write models. Commands in CQRS are serializable method calls. <img src="Figures/CQS_vs_CQRS1.PNG" alt="CQS vs CQRS1" style="zoom:50%;" />
 
@@ -428,7 +430,7 @@ public interface ICommandHandler<TCommand> where TCommand : ICommand
 }
 ```
 
-##### Commands, Queries, and Events
+#### Commands, Queries, and Events
 
 Commands, queries, and events are all messages which are all part of the core domain.
 
@@ -444,7 +446,7 @@ Another distinction between command and event is that a server can reject a comm
 
 *Figure* Command and event in the onion architecture. Command and events are part of the core domain layer, whereas command handlers reside in the application services layer.
 
-##### Implement command handlers via reflection, DI container, and dynamic class
+#### Implement command handlers via reflection, DI container, and dynamic class
 
 The following code snippet from [CQRS in practice][cqrs in practice] demonstrates how to implement a command handler that can address all types of commands. The key is to leverage DI container, reflection, and dynamic class.
 
@@ -492,7 +494,268 @@ public sealed class Messages
 
 
 
+### Decorator
 
+Decorator is a class or a method that modifies the behavior of an existing class or method without changing its public interface.
+
+The following code snippets are from section 6 of [CQRS in practice][cqrs in practice]. Decorator pattern is applied along with commands and queries.
+
+#### Register nested decorators in DI container
+
+`EditPersonalInfoCommandHandler` has two outer decorators: `DatabaseRetryDecorator` and `AuditLoggingDecorator`. `provider` gets services from the DI container and passes them to the constructor of `EditPersonalInfoCommandHandler`.
+
+```c#
+public void ConfigureServices(IServiceCollection services)
+{
+    services.AddMvc();
+    var config = new Config(3); 
+    services.AddSingleton(config);          
+
+    services.AddSingleton(new SessionFactory(Configuration["ConnectionString"]));
+    services.AddTransient<UnitOfWork>();
+	services.AddTransient<ICommandHandler<EditPersonalInfoCommand>>(provider =>
+       new AuditLoggingDecorator<EditPersonalInfoCommand>(
+       	new DatabaseRetryDecorator<EditPersonalInfoCommand>(
+          new EditPersonalInfoCommandHandler(provider.GetServices<SessionFactory>()),
+          provider.GetServices<Config>()
+        )
+      )
+    )    
+    services.AddSingleton<Messages>();
+    services.AddHandlers();
+}
+```
+
+
+
+```c#
+public sealed class DatabaseRetryDecorator<TCommand> : ICommandHandler<TCommand>
+        where TCommand : ICommand
+    {
+        private readonly ICommandHandler<TCommand> _handler;
+        private readonly Config _config;
+
+        public DatabaseRetryDecorator(ICommandHandler<TCommand> handler, Config config)
+        {
+            _config = config;
+            _handler = handler;
+        }
+
+        public Result Handle(TCommand command)
+        {
+            for (int i = 0; ; i++)
+            {
+                try
+                {
+                    Result result = _handler.Handle(command);
+                    return result;
+                }
+                catch (Exception ex)
+                {
+                    if (i >= _config.NumberOfDatabaseRetries || !IsDatabaseException(ex))
+                        throw;
+                }
+            }
+        }
+
+        private bool IsDatabaseException(Exception exception)
+        {
+            string message = exception.InnerException?.Message;
+
+            if (message == null)
+                return false;
+
+            return message.Contains("The connection is broken and recovery is not possible")
+                || message.Contains("error occurred while establishing a connection");
+        }
+    }
+```
+
+```c#
+public sealed class AuditLoggingDecorator<TCommand> : ICommandHandler<TCommand>
+        where TCommand : ICommand
+    {
+        private readonly ICommandHandler<TCommand> _handler;
+
+        public AuditLoggingDecorator(ICommandHandler<TCommand> handler)
+        {
+            _handler = handler;
+        }
+
+        public Result Handle(TCommand command)
+        {
+            string commandJson = JsonConvert.SerializeObject(command);
+
+            // Use proper logging here
+            Console.WriteLine($"Command of type {command.GetType().Name}: {commandJson}");
+
+            return _handler.Handle(command);
+        }
+    }
+```
+
+
+
+#### Decorator as an attribute
+
+```c#
+[AttributeUsage(AttributeTargets.Class, Inherited = false, AllowMultiple = true)]
+public sealed class DatabaseRetryAttribute : Attribute
+{
+    public DatabaseRetryAttribute()
+    {
+    }
+}
+
+[AttributeUsage(AttributeTargets.Class, Inherited = false, AllowMultiple = true)]
+public sealed class AuditLogAttribute : Attribute
+{
+    public AuditLogAttribute()
+    {
+    }
+}
+```
+
+These two attributes areconsumed as follow.
+
+```c#
+[AuditLog]
+[DatabaseRetry]
+internal sealed class EditPersonalInfoCommandHandler : ICommandHandler<EditPersonalInfoCommand>
+{
+    ...
+}
+```
+
+#### Register decorators in DI container via reflection
+
+The following class creates an extension method `AddHandlers` such that all decorators can be registered in `StartUp` in one line `services.AddHandlers()`. Some packages such as Simple Injector may achieve this as well.
+
+The `AddHandler()` method does the following. Take the decorated command handler above as an example.
+
+- Extract a list of types (`pipeline`) ordered by construction sequence. For example,  [`EditPersionalInfoCommandHandler`, `DatabaseRetry`,  `AuditLog`]. 
+- Extract the handler interface. The result is either`ICommandHandler<>` or `QueryHandler<,>`.
+- Get constructor info for each type in the `pipeline`
+- Create a factory delegate that can invoke constructors for the pipeline.
+- Register the factory delegate in the DI container.
+
+```c#
+public static class HandlerRegistration
+{
+    public static void AddHandlers(this IServiceCollection services)
+    {
+        List<Type> handlerTypes = typeof(ICommand).Assembly.GetTypes()
+            .Where(x => x.GetInterfaces().Any(y => IsHandlerInterface(y)))
+            .Where(x => x.Name.EndsWith("Handler"))
+            .ToList();
+
+        foreach (Type type in handlerTypes)
+        {
+            AddHandler(services, type);
+        }
+    }
+
+    private static void AddHandler(IServiceCollection services, Type type)
+    {
+        object[] attributes = type.GetCustomAttributes(false);
+
+        List<Type> pipeline = attributes
+            .Select(x => ToDecorator(x))
+            .Concat(new[] { type })
+            .Reverse()
+            .ToList();
+
+        Type interfaceType = type.GetInterfaces().Single(y => IsHandlerInterface(y));
+        Func<IServiceProvider, object> factory = BuildPipeline(pipeline, interfaceType);
+
+        services.AddTransient(interfaceType, factory);
+    }
+
+    private static Func<IServiceProvider, object> BuildPipeline(List<Type> pipeline, Type interfaceType)
+    {
+        List<ConstructorInfo> ctors = pipeline
+            .Select(x =>
+                    {
+                        Type type = x.IsGenericType ? x.MakeGenericType(interfaceType.GenericTypeArguments) : x;
+                        return type.GetConstructors().Single();
+                    })
+            .ToList();
+
+        Func<IServiceProvider, object> func = provider =>
+        {
+            object current = null;
+
+            foreach (ConstructorInfo ctor in ctors)
+            {
+                List<ParameterInfo> parameterInfos = ctor.GetParameters().ToList();
+
+                object[] parameters = GetParameters(parameterInfos, current, provider);
+
+                current = ctor.Invoke(parameters);
+            }
+
+            return current;
+        };
+
+        return func;
+    }
+
+    private static object[] GetParameters(List<ParameterInfo> parameterInfos, object current, IServiceProvider provider)
+    {
+        var result = new object[parameterInfos.Count];
+
+        for (int i = 0; i < parameterInfos.Count; i++)
+        {
+            result[i] = GetParameter(parameterInfos[i], current, provider);
+        }
+
+        return result;
+    }
+
+    private static object GetParameter(ParameterInfo parameterInfo, object current, IServiceProvider provider)
+    {
+        Type parameterType = parameterInfo.ParameterType;
+
+        if (IsHandlerInterface(parameterType))
+            return current;
+
+        object service = provider.GetService(parameterType);
+        if (service != null)
+            return service;
+
+        throw new ArgumentException($"Type {parameterType} not found");
+    }
+
+    private static Type ToDecorator(object attribute)
+    {
+        Type type = attribute.GetType();
+
+        if (type == typeof(DatabaseRetryAttribute))
+            return typeof(DatabaseRetryDecorator<>);
+
+        if (type == typeof(AuditLogAttribute))
+            return typeof(AuditLoggingDecorator<>);
+
+        // other attributes go here
+
+        throw new ArgumentException(attribute.ToString());
+    }
+
+    private static bool IsHandlerInterface(Type type)
+    {
+        if (!type.IsGenericType)
+            return false;
+
+        Type typeDefinition = type.GetGenericTypeDefinition();
+
+        return typeDefinition == typeof(ICommandHandler<>) || typeDefinition == typeof(IQueryHandler<,>);
+    }
+}
+```
+
+
+
+#### Decorator vs middleware
 
 ## References
 

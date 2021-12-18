@@ -757,6 +757,49 @@ public static class HandlerRegistration
 
 #### Decorator vs middleware
 
+ASP.Net middleware follows the decorator pattern. In the example below, the `ExceptionHandler` middleware takes in a request delegate. The analogies are that middleware are like decorators; controllers are like handlers. 
+
+- Middleware is good for ubiquitous and ASP.NET-related cross-cutting concerns, such as caching, transaction handling.
+- Decorators are good for everything else. Key advantages are:
+  - Additional control
+  - Separation of concerns
+  - Easy to apply selectively
+
+```c#
+public sealed class ExceptionHandler
+{
+    private readonly RequestDelegate _next;
+
+    public ExceptionHandler(RequestDelegate next)
+    {
+        _next = next;
+    }
+
+    public async Task Invoke(HttpContext context)
+    {
+        try
+        {
+            await _next(context);
+        }
+        catch (Exception ex)
+        {
+            await HandleExceptionAsync(context, ex);
+        }
+    }
+
+    private Task HandleExceptionAsync(HttpContext context, Exception exception)
+    {
+        // Log exception here
+        string result = JsonConvert.SerializeObject(Envelope.Error(exception.Message));
+        context.Response.ContentType = "application/json";
+        context.Response.StatusCode = (int)HttpStatusCode.InternalServerError;
+        return context.Response.WriteAsync(result);
+    }
+}
+```
+
+
+
 ## References
 
 1. [C# SOLID Principles][solid_principles_course]

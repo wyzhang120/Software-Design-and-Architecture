@@ -386,6 +386,49 @@ Command Query Responsibility Segregation (CQRS) is a pattern that separates read
 
 *Figure* CQRS ([Microsoft Docs][cqrs])
 
+#### Why separating read models from write ones?
+
+Using the same domain model for reads and writes causes the following problems:
+
+- Domain model overcomplication. Some fields are only necessary for queries and vice versa. In the student enrollment example, the first enrollment and second enrollment fields are only used by the `GetList` method.
+- Bad query performance. ORM and Linq do not support full functionality of the database, and hence performance is degraded. For example, N + 1 queries.
+
+Queries do not modify the data. Hence they do not need encapsulation or abstraction, and can be taken out of the domain model. 
+
+<img src="Figures/SimplifyReadSide.PNG" alt="Simplify the read model" style="zoom:50%;" />
+
+*Figure* Simplify the read model
+
+- Read model is a thin wrapper on top of the database. 
+- Queries do not reside in the core layer of the onion architecture.
+- Queries can use database-specific features to optimize the performance. For example, complex SQL queries, vendor-specific features, stored procedures, etc.
+
+##### N + 1 queries
+
+The N+1 queries problem is that a query first retrieves a list and then for each entry in list, a query is sent to the database. This is due to the limitations of Linq and ORM. While Linq executes in memory, a query needs a query provider and an expression. Due to lazy loading, data is loaded into memory only when it is absolutely needed. In the example below,   `query` is executed only when `ToList` is called. After the data is loaded into memory,  we can count the number of course in each enrollment. Hence redundant data is forced to be loaded into memory.
+
+```c#
+public IReadOnlyList<Student> GetList(string enrolledIn, int? numberOfCourses)
+{
+    IQueryable<student> query = _unitOfWork.Query<Student>();
+    if (!string.IsNullOrWhiteSpace(enrolledIn))
+    {
+        query = query.Where(x => x.Enrollments.Any(e => e.Course.Name == enrolledIn));
+    }
+    
+    List<Student> result = query.ToList();
+    
+    if (numberOfCourses != null)
+    {
+        result = result.Where(x => x.Enrollments.Count == numberOfCourses).ToList();
+    }
+    
+    return result;
+}
+```
+
+
+
 #### CQRS vs CQS
 
 CQRS ([Greg Young, 2010][greg young]) originates from CQS (command query separation, Bertrand Meyer). In CQS, commands are produce side-effects (change state of the system) and return void. Queries have no side-effect and return non-void. CRQS further separates the read/write models. Commands in CQRS are serializable method calls. <img src="Figures/CQS_vs_CQRS1.PNG" alt="CQS vs CQRS1" style="zoom:50%;" />
@@ -432,7 +475,7 @@ public interface ICommandHandler<TCommand> where TCommand : ICommand
 
 #### Commands, Queries, and Events
 
-Commands, queries, and events are all messages which are all part of the core domain.
+Commands, queries, and events are all messages. Commands and events are part of the core domain.
 
 | Commands                             | Queries                             | Events                       |
 | ------------------------------------ | ----------------------------------- | ---------------------------- |

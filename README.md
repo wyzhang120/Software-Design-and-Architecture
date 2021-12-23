@@ -427,7 +427,15 @@ public IReadOnlyList<Student> GetList(string enrolledIn, int? numberOfCourses)
 }
 ```
 
+#### Pros of CQRS
 
+- Simplicity. Split CRUD-based API end points into task-based based ones. Create commands, queries, and handlers for tasks, hence app services layer becomes more separated and follows SRP.
+- Performance. Separate read model from writes ones enhances performance of queries and commands, and also reduces complexity.
+- Scalability. Performance of a single server has a limit. Using one or more separate databases for queries achieves scalability. Commands are more difficulty to scale out than queries. [Sharding](https://www.geeksforgeeks.org/database-sharding-a-system-design-concept/) or data partition is needed to scale commands.
+
+<img src="Figures/ProsOfCQRS.PNG" style="zoom:60%;" />
+
+*Figure* CQRS has three advantages: simplicity, performance, scalability.
 
 #### CQRS vs CQS
 

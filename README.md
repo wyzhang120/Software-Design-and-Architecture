@@ -431,11 +431,23 @@ public IReadOnlyList<Student> GetList(string enrolledIn, int? numberOfCourses)
 
 - Simplicity. Split CRUD-based API end points into task-based based ones. Create commands, queries, and handlers for tasks, hence app services layer becomes more separated and follows SRP.
 - Performance. Separate read model from writes ones enhances performance of queries and commands, and also reduces complexity.
-- Scalability. Performance of a single server has a limit. Using one or more separate databases for queries achieves scalability. Commands are more difficulty to scale out than queries. [Sharding](https://www.geeksforgeeks.org/database-sharding-a-system-design-concept/) or data partition is needed to scale commands.
+- Scalability. Performance of a single server has a limit. Using one or more separate databases for queries achieves scalability. Commands are more difficulty to scale out than queries. [Sharding](https://www.geeksforgeeks.org/database-sharding-a-system-design-concept/) is needed to scale commands.
+
+#### A separate database for queries
+
+Commands and queries can be separated at the following levels: API endpoints, app services, domain model, and database. Schema of the read database is adjusted for the needs of the query model. The read database is often denormalized and has 1st normal relational form; the write database has 3rd norm. However, be prudent when introducing a separate database. Synchronization between the read and write databases can be costly; eventual consistency can cause confusion for users.
+
+Examples of separation at the data level:
+
+- Indexed views
+- Database replication
+- ElasticSearch
+
+
 
 <img src="Figures/ProsOfCQRS.PNG" style="zoom:60%;" />
 
-*Figure* CQRS has three advantages: simplicity, performance, scalability.
+*Figure* CQRS has three advantages: simplicity, performance, scalability. Commands and queries can be separated at the following levels: API endpoints, app services, domain model, and database. The first two contribute to simplicity; the third contributes to performance and simplicity; the last one contributes to scalability.
 
 #### CQRS vs CQS
 

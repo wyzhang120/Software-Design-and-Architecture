@@ -555,6 +555,57 @@ public sealed class Messages
     }
 ```
 
+#### Syncrhonization/Projection
+
+Projections:
+
+- Event-driven
+
+- State-driven
+
+  Flags in data tables, e.g., `IsSyncRequired`, `IsDirty`. A flag per each aggregate.
+
+  Or, a dedicated `IsSyncRequired` table to offload the pressure.
+
+  - Synchronous
+  - Asynchronous
+
+  <img src="Figures/StateDrivenProjection.PNG" style="zoom:60%;" />
+
+  *Figure* When a command updates the write database, raise the `IsSyncRequired` flag; then sync with the read database; when completed, reset the `IsSyncRequired` flag.
+
+#### Two ways to implement the write database for synchronization
+
+- Database triggers
+
+  Choose this approach if the source code of domain model is not in control.
+
+  - Monitor all changes
+  - Implement a soft deletion (deletion as a modification): `IsDeleted` flag. 
+
+- Introduce flags in the domain model
+
+  This is the recommended approach if the source code of domain model is in control.
+
+  ```c#
+  public class Student : Entity
+  {
+      public virtual string Name { get; set; }
+      public virtual string Email { get; set; }
+      public virtual bool IsSyncRequired {get; private set;}
+      
+      public virtual void RemoveEnrollment(Enrollment enrollment, string comment)
+      {
+          ...
+          IsSyncRequired = true;
+      }
+  }
+  ```
+
+  
+
+  Override setters of properties to raise the `IsSyncRequired` flag whenever the client updates properties.  Some the following tools can achieve this: event listeners in NHibernate; change tracker in entity framework. An example can be found in section 7 of this [article](http://bit.ly/ef-vs-nh).
+
 
 
 ### Decorator

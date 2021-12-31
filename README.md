@@ -557,24 +557,31 @@ public sealed class Messages
 
 #### Syncrhonization/Projection
 
-Projections:
+##### State-driven projection
 
-- Event-driven
+Flags in data tables, e.g., `IsSyncRequired`, `IsDirty`. A flag per each aggregate.
 
-- State-driven
+Or, a dedicated `IsSyncRequired` table to offload the pressure.
 
-  Flags in data tables, e.g., `IsSyncRequired`, `IsDirty`. A flag per each aggregate.
+- Synchronous
 
-  Or, a dedicated `IsSyncRequired` table to offload the pressure.
+  - All changes are immediately consistent.
+  - Application waits until the persistency is completed.
+  - It does not scale.
 
-  - Synchronous
-  - Asynchronous
+  Index views are examples synchronous projection. It is better to use the one database for read and write in this approach.
 
-  <img src="Figures/StateDrivenProjection.PNG" style="zoom:60%;" />
+- Asynchronous
 
-  *Figure* When a command updates the write database, raise the `IsSyncRequired` flag; then sync with the read database; when completed, reset the `IsSyncRequired` flag.
+  Database replication is an example of asynchronous projection.
 
-#### Two ways to implement the write database for synchronization
+<img src="Figures/StateDrivenProjection.PNG" style="zoom:60%;" />
+
+*Figure* When a command updates the write database, raise the `IsSyncRequired` flag; then sync with the read database; when completed, reset the `IsSyncRequired` flag.
+
+
+
+###### Two ways to implement the write database for state-driven synchronization
 
 - Database triggers
 
@@ -606,7 +613,12 @@ Projections:
 
   Override setters of properties to raise the `IsSyncRequired` flag whenever the client updates properties.  Some the following tools can achieve this: event listeners in NHibernate; change tracker in entity framework. An example can be found in section 7 of this [article](http://bit.ly/ef-vs-nh).
 
+##### Event-driven projection
 
+Domain events drive the changes; databases subscribe to domain events. 
+
+- Scale very well. A message bus can be used.
+- Unless domain events are stored,  it is impossible to rebuild the read database. If domain events are stored, the event sourcing pattern should be applied.
 
 ### Decorator
 

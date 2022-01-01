@@ -620,6 +620,53 @@ Domain events drive the changes; databases subscribe to domain events.
 - Scale very well. A message bus can be used.
 - Unless domain events are stored,  it is impossible to rebuild the read database. If domain events are stored, the event sourcing pattern should be applied.
 
+#### Consistency
+
+Having two databases instead of one introduces latency.
+
+Ways to mitigate the potential conrfusion
+
+- Uniqueness constraints (unique ID)
+- Commands database is always immediately consistent
+
+Read operations may exist for the command database; it is part of the command processing flow and the result does not go across database boundary, e.g., before saving a new entry in the command database, the uniqueness constraint on certain property may need to be checked. This is different from running a query from the command handler which should be avoided. With event sourcing, there is no efficient way to query the current state of the write database; the client has to query the read database.
+
+##### Eventual consistency
+
+A consistency model which guarantees that, if no new updates are made to a given data item, eventually all accesses to that item will return the last updated value. 
+
+Tips: display helpful messages and set proper expectations; or store results locally. [Example: Starbuck doesn't use two-phase commit](http://bit.ly/starbucks-cons)
+
+Eventual consistency is problematic when the cost of making a decision based on the stale data is high, e.g., high-frequency trading.
+
+##### Versioning
+
+Keep a version in both read and write database. If a user tries to update stale data, display an error. This is called *optimistic concurrency control*.
+
+<img src="Figures/Versioning.PNG" style="zoom:60%;" />
+
+*Figure* Versioning
+
+#### CAP theorem
+
+It is impossible for distributed data store to simultaneously proved more than two out the three guarantees: consistency, availability, and partition tolerance.
+
+- Consistency means every read receives the most recent write or an error. 
+- Availability means that every request receives a response, apart from outage that affects all nodes in the system.
+- Partition tolerance means that the system continues to operate despite messages being dropped or delayed between network nodes.
+
+<img src="Figures/CAPTheorem.PNG" style="zoom:60%;" />
+
+*Figure* CAP theorem. Consistency + availability is a typical single node relational database; consistency + partition tolerance is an anti-pattern.
+
+CQRS allows you to make different choices for reads and writes. Trade off between consistency and partition tolerance.
+
+<img src="Figures/ConsistencyPartiionTradeOff.PNG" style="zoom:60%;" />
+
+*Figure* Trade off between consistency and partition tolerance.
+
+
+
 ### Decorator
 
 Decorator is a class or a method that modifies the behavior of an existing class or method without changing its public interface.

@@ -378,295 +378,6 @@ public abstract class Repository<T>
     }
 ```
 
-### CQRS 
-
-Command Query Responsibility Segregation (CQRS) is a pattern that separates read and update operations for a data store ([Microsoft Docs][cqrs]) .  It solves the asymmetry of read and write workloads. Use commands to update data and queries to read data. Commands mutate the state of entities; they may be placed on a queue for asynchronous processing.
-
-![CQRS](Figures/CQRS.PNG)
-
-*Figure* CQRS ([Microsoft Docs][cqrs])
-
-#### Why separating read models from write ones?
-
-Using the same domain model for reads and writes causes the following problems:
-
-- Domain model overcomplication. Some fields are only necessary for queries and vice versa. In the student enrollment example, the first enrollment and second enrollment fields are only used by the `GetList` method.
-- Bad query performance. ORM and Linq do not support full functionality of the database, and hence performance is degraded. For example, N + 1 queries.
-
-Queries do not modify the data. Hence they do not need encapsulation or abstraction, and can be taken out of the domain model. 
-
-<img src="Figures/SimplifyReadSide.PNG" alt="Simplify the read model" style="zoom:50%;" />
-
-*Figure* Simplify the read model
-
-- Read model is a thin wrapper on top of the database. 
-- Queries do not reside in the core layer of the onion architecture.
-- Queries can use database-specific features to optimize the performance. For example, complex SQL queries, vendor-specific features, stored procedures, etc.
-
-##### N + 1 queries
-
-The N+1 queries problem is that a query first retrieves a list and then for each entry in list, a query is sent to the database. This is due to the limitations of Linq and ORM. While Linq executes in memory, a query needs a query provider and an expression. Due to lazy loading, data is loaded into memory only when it is absolutely needed. In the example below,   `query` is executed only when `ToList` is called. After the data is loaded into memory,  we can count the number of course in each enrollment. Hence redundant data is forced to be loaded into memory.
-
-```c#
-public IReadOnlyList<Student> GetList(string enrolledIn, int? numberOfCourses)
-{
-    IQueryable<student> query = _unitOfWork.Query<Student>();
-    if (!string.IsNullOrWhiteSpace(enrolledIn))
-    {
-        query = query.Where(x => x.Enrollments.Any(e => e.Course.Name == enrolledIn));
-    }
-    
-    List<Student> result = query.ToList();
-    
-    if (numberOfCourses != null)
-    {
-        result = result.Where(x => x.Enrollments.Count == numberOfCourses).ToList();
-    }
-    
-    return result;
-}
-```
-
-#### Pros of CQRS
-
-- Simplicity. Split CRUD-based API end points into task-based based ones. Create commands, queries, and handlers for tasks, hence app services layer becomes more separated and follows SRP.
-- Performance. Separate read model from writes ones enhances performance of queries and commands, and also reduces complexity.
-- Scalability. Performance of a single server has a limit. Using one or more separate databases for queries achieves scalability. Commands are more difficulty to scale out than queries. [Sharding](https://www.geeksforgeeks.org/database-sharding-a-system-design-concept/) is needed to scale commands.
-
-#### A separate database for queries
-
-Commands and queries can be separated at the following levels: API endpoints, app services, domain model, and database. Schema of the read database is adjusted for the needs of the query model. The read database is often denormalized and has 1st normal relational form; the write database has 3rd norm. However, be prudent when introducing a separate database. Synchronization between the read and write databases can be costly; eventual consistency can cause confusion for users.
-
-Examples of separation at the data level:
-
-- Indexed views
-- Database replication
-- ElasticSearch
-
-
-
-<img src="Figures/ProsOfCQRS.PNG" style="zoom:60%;" />
-
-*Figure* CQRS has three advantages: simplicity, performance, scalability. Commands and queries can be separated at the following levels: API endpoints, app services, domain model, and database. The first two contribute to simplicity; the third contributes to performance and simplicity; the last one contributes to scalability.
-
-#### CQRS vs CQS
-
-CQRS ([Greg Young, 2010][greg young]) originates from CQS (command query separation, Bertrand Meyer). In CQS, commands are produce side-effects (change state of the system) and return void. Queries have no side-effect and return non-void. CRQS further separates the read/write models. Commands in CQRS are serializable method calls. <img src="Figures/CQS_vs_CQRS1.PNG" alt="CQS vs CQRS1" style="zoom:50%;" />
-
-<img src="Figures/CQS_vs_CQRS2.PNG" alt="CQS vs CQRS2" style="zoom:50%;" />
-
-*Figure* CQS vs CQRS ([Vladimir Khorikov][cqrs in practice])
-
-The code snippets below ([CQRS in practice][cqrs in practice]) compare commands in CQS and CQRS.
-
-CQS command example, a controller method.
-
-```c#
-[HttpPut("{id}")]
-public IActionResult EditPersonalInfo(long id, [FromBody] StudentPersonalInfoDto dto)
-{
-    ...
-}
-```
-
-CQRS command, a custom class named in imperative tense
-
-```c#
-public sealed class EditPersonalInfoCommand: ICommand
-{
-    public long Id {get; set;}
-    public string Name {get; set}
-    public string Email {get; set}
-}
-```
-
-Interfaces for CQRS command and command handler. `Result` is a custom class that has Http-like status code.
-
-```c#
-public interface ICommand
-{
-}
-
-public interface ICommandHandler<TCommand> where TCommand : ICommand
-{
-    Result Handle(TCommand command);
-}
-```
-
-#### Commands, Queries, and Events
-
-Commands, queries, and events are all messages. Commands and events are part of the core domain.
-
-| Commands                             | Queries                             | Events                       |
-| ------------------------------------ | ----------------------------------- | ---------------------------- |
-| Tell the application to do something | Ask the application about something | Inform external applications |
-| Imperative tense                     | Start with "Get"                    | Past tense                   |
-| `EditPersionalInfoCommand`           | `GetListQuery`                      | `PersonalInfoChangedEvent`   |
-
-Another distinction between command and event is that a server can reject a command but not an event.
-
-<img src="Figures/CommandEventInOnion.PNG" style="zoom:50%;" />
-
-*Figure* Command and event in the onion architecture. Command and events are part of the core domain layer, whereas command handlers reside in the application services layer.
-
-#### Implement command handlers via reflection, DI container, and dynamic class
-
-The following code snippet from [CQRS in practice][cqrs in practice] demonstrates how to implement a command handler that can address all types of commands. The key is to leverage DI container, reflection, and dynamic class.
-
-- `ISerivedProvider` interface provides a way to access class registered in the DI container
-- `type.MakeGenericType(typeArgs)` demonstrates how to create a generic command handler via reflection
-- `dynamic handler` enables the `Message` class to address all types of command handlers. 
-
-
-
-```c#
-public sealed class Messages
-    {
-        private readonly IServiceProvider _provider;
-
-        public Messages(IServiceProvider provider)
-        {
-            _provider = provider;
-        }
-
-        public Result Dispatch(ICommand command)
-        {
-            Type type = typeof(ICommandHandler<>);
-            Type[] typeArgs = { command.GetType() };
-            Type handlerType = type.MakeGenericType(typeArgs);
-
-            dynamic handler = _provider.GetService(handlerType);
-            Result result = handler.Handle((dynamic)command);
-
-            return result;
-        }
-
-        public T Dispatch<T>(IQuery<T> query)
-        {
-            Type type = typeof(IQueryHandler<,>);
-            Type[] typeArgs = { query.GetType(), typeof(T) };
-            Type handlerType = type.MakeGenericType(typeArgs);
-
-            dynamic handler = _provider.GetService(handlerType);
-            T result = handler.Handle((dynamic)query);
-
-            return result;
-        }
-    }
-```
-
-#### Syncrhonization/Projection
-
-##### State-driven projection
-
-Flags in data tables, e.g., `IsSyncRequired`, `IsDirty`. A flag per each aggregate.
-
-Or, a dedicated `IsSyncRequired` table to offload the pressure.
-
-- Synchronous
-
-  - All changes are immediately consistent.
-  - Application waits until the persistency is completed.
-  - It does not scale.
-
-  Index views are examples synchronous projection. It is better to use the one database for read and write in this approach.
-
-- Asynchronous
-
-  Database replication is an example of asynchronous projection.
-
-<img src="Figures/StateDrivenProjection.PNG" style="zoom:60%;" />
-
-*Figure* When a command updates the write database, raise the `IsSyncRequired` flag; then sync with the read database; when completed, reset the `IsSyncRequired` flag.
-
-
-
-###### Two ways to implement the write database for state-driven synchronization
-
-- Database triggers
-
-  Choose this approach if the source code of domain model is not in control.
-
-  - Monitor all changes
-  - Implement a soft deletion (deletion as a modification): `IsDeleted` flag. 
-
-- Introduce flags in the domain model
-
-  This is the recommended approach if the source code of domain model is in control.
-
-  ```c#
-  public class Student : Entity
-  {
-      public virtual string Name { get; set; }
-      public virtual string Email { get; set; }
-      public virtual bool IsSyncRequired {get; private set;}
-      
-      public virtual void RemoveEnrollment(Enrollment enrollment, string comment)
-      {
-          ...
-          IsSyncRequired = true;
-      }
-  }
-  ```
-
-  
-
-  Override setters of properties to raise the `IsSyncRequired` flag whenever the client updates properties.  Some the following tools can achieve this: event listeners in NHibernate; change tracker in entity framework. An example can be found in section 7 of this [article](http://bit.ly/ef-vs-nh).
-
-##### Event-driven projection
-
-Domain events drive the changes; databases subscribe to domain events. 
-
-- Scale very well. A message bus can be used.
-- Unless domain events are stored,  it is impossible to rebuild the read database. If domain events are stored, the event sourcing pattern should be applied.
-
-#### Consistency
-
-Having two databases instead of one introduces latency.
-
-Ways to mitigate the potential conrfusion
-
-- Uniqueness constraints (unique ID)
-- Commands database is always immediately consistent
-
-Read operations may exist for the command database; it is part of the command processing flow and the result does not go across database boundary, e.g., before saving a new entry in the command database, the uniqueness constraint on certain property may need to be checked. This is different from running a query from the command handler which should be avoided. With event sourcing, there is no efficient way to query the current state of the write database; the client has to query the read database.
-
-##### Eventual consistency
-
-A consistency model which guarantees that, if no new updates are made to a given data item, eventually all accesses to that item will return the last updated value. 
-
-Tips: display helpful messages and set proper expectations; or store results locally. [Example: Starbuck doesn't use two-phase commit](http://bit.ly/starbucks-cons)
-
-Eventual consistency is problematic when the cost of making a decision based on the stale data is high, e.g., high-frequency trading.
-
-##### Versioning
-
-Keep a version in both read and write database. If a user tries to update stale data, display an error. This is called *optimistic concurrency control*.
-
-<img src="Figures/Versioning.PNG" style="zoom:60%;" />
-
-*Figure* Versioning
-
-#### CAP theorem
-
-It is impossible for distributed data store to simultaneously proved more than two out the three guarantees: consistency, availability, and partition tolerance.
-
-- Consistency means every read receives the most recent write or an error. 
-- Availability means that every request receives a response, apart from outage that affects all nodes in the system.
-- Partition tolerance means that the system continues to operate despite messages being dropped or delayed between network nodes.
-
-<img src="Figures/CAPTheorem.PNG" style="zoom:60%;" />
-
-*Figure* CAP theorem. Consistency + availability is a typical single node relational database; consistency + partition tolerance is an anti-pattern.
-
-CQRS allows you to make different choices for reads and writes. Trade off between consistency and partition tolerance.
-
-<img src="Figures/ConsistencyPartiionTradeOff.PNG" style="zoom:60%;" />
-
-*Figure* Trade off between consistency and partition tolerance.
-
-
-
 ### Decorator
 
 Decorator is a class or a method that modifies the behavior of an existing class or method without changing its public interface.
@@ -973,6 +684,339 @@ public sealed class ExceptionHandler
 
 
 
+### CQRS 
+
+Command Query Responsibility Segregation (CQRS) is a pattern that separates read and update operations for a data store ([Microsoft Docs][cqrs]) .  It solves the asymmetry of read and write workloads. Use commands to update data and queries to read data. Commands mutate the state of entities; they may be placed on a queue for asynchronous processing.
+
+![CQRS](Figures/CQRS.PNG)
+
+*Figure* CQRS ([Microsoft Docs][cqrs])
+
+#### Why separating read models from write ones?
+
+Using the same domain model for reads and writes causes the following problems:
+
+- Domain model overcomplication. Some fields are only necessary for queries and vice versa. In the student enrollment example, the first enrollment and second enrollment fields are only used by the `GetList` method.
+- Bad query performance. ORM and Linq do not support full functionality of the database, and hence performance is degraded. For example, N + 1 queries.
+
+Queries do not modify the data. Hence they do not need encapsulation or abstraction, and can be taken out of the domain model. 
+
+<img src="Figures/SimplifyReadSide.PNG" alt="Simplify the read model" style="zoom:50%;" />
+
+*Figure* Simplify the read model
+
+- Read model is a thin wrapper on top of the database. 
+- Queries do not reside in the core layer of the onion architecture.
+- Queries can use database-specific features to optimize the performance. For example, complex SQL queries, vendor-specific features, stored procedures, etc.
+
+##### N + 1 queries
+
+The N+1 queries problem is that a query first retrieves a list and then for each entry in list, a query is sent to the database. This is due to the limitations of Linq and ORM. While Linq executes in memory, a query needs a query provider and an expression. Due to lazy loading, data is loaded into memory only when it is absolutely needed. In the example below,   `query` is executed only when `ToList` is called. After the data is loaded into memory,  we can count the number of course in each enrollment. Hence redundant data is forced to be loaded into memory.
+
+```c#
+public IReadOnlyList<Student> GetList(string enrolledIn, int? numberOfCourses)
+{
+    IQueryable<student> query = _unitOfWork.Query<Student>();
+    if (!string.IsNullOrWhiteSpace(enrolledIn))
+    {
+        query = query.Where(x => x.Enrollments.Any(e => e.Course.Name == enrolledIn));
+    }
+    
+    List<Student> result = query.ToList();
+    
+    if (numberOfCourses != null)
+    {
+        result = result.Where(x => x.Enrollments.Count == numberOfCourses).ToList();
+    }
+    
+    return result;
+}
+```
+
+#### Pros of CQRS
+
+- Simplicity. Split CRUD-based API end points into task-based based ones. Create commands, queries, and handlers for tasks, hence app services layer becomes more separated and follows SRP.
+- Performance. Separate read model from writes ones enhances performance of queries and commands, and also reduces complexity.
+- Scalability. Performance of a single server has a limit. Using one or more separate databases for queries achieves scalability. Commands are more difficulty to scale out than queries. [Sharding](https://www.geeksforgeeks.org/database-sharding-a-system-design-concept/) is needed to scale commands.
+
+#### A separate database for queries
+
+Commands and queries can be separated at the following levels: API endpoints, app services, domain model, and database. Schema of the read database is adjusted for the needs of the query model. The read database is often denormalized and has 1st normal relational form; the write database has 3rd norm. However, be prudent when introducing a separate database. Synchronization between the read and write databases can be costly; eventual consistency can cause confusion for users.
+
+Examples of separation at the data level:
+
+- Indexed views
+- Database replication
+- ElasticSearch
+
+
+
+<img src="Figures/ProsOfCQRS.PNG" style="zoom:60%;" />
+
+*Figure* CQRS has three advantages: simplicity, performance, scalability. Commands and queries can be separated at the following levels: API endpoints, app services, domain model, and database. The first two contribute to simplicity; the third contributes to performance and simplicity; the last one contributes to scalability.
+
+#### CQRS vs CQS
+
+CQRS ([Greg Young, 2010][greg young]) originates from CQS (command query separation, Bertrand Meyer). In CQS, commands are produce side-effects (change state of the system) and return void. Queries have no side-effect and return non-void. CRQS further separates the read/write models. Commands in CQRS are serializable method calls. <img src="Figures/CQS_vs_CQRS1.PNG" alt="CQS vs CQRS1" style="zoom:50%;" />
+
+<img src="Figures/CQS_vs_CQRS2.PNG" alt="CQS vs CQRS2" style="zoom:50%;" />
+
+*Figure* CQS vs CQRS ([Vladimir Khorikov][cqrs in practice])
+
+The code snippets below ([CQRS in practice][cqrs in practice]) compare commands in CQS and CQRS.
+
+CQS command example, a controller method.
+
+```c#
+[HttpPut("{id}")]
+public IActionResult EditPersonalInfo(long id, [FromBody] StudentPersonalInfoDto dto)
+{
+    ...
+}
+```
+
+CQRS command, a custom class named in imperative tense
+
+```c#
+public sealed class EditPersonalInfoCommand: ICommand
+{
+    public long Id {get; set;}
+    public string Name {get; set}
+    public string Email {get; set}
+}
+```
+
+Interfaces for CQRS command and command handler. `Result` is a custom class that has Http-like status code.
+
+```c#
+public interface ICommand
+{
+}
+
+public interface ICommandHandler<TCommand> where TCommand : ICommand
+{
+    Result Handle(TCommand command);
+}
+```
+
+#### Commands, Queries, and Events
+
+Commands, queries, and events are all messages. Commands and events are part of the core domain.
+
+| Commands                             | Queries                             | Events                       |
+| ------------------------------------ | ----------------------------------- | ---------------------------- |
+| Tell the application to do something | Ask the application about something | Inform external applications |
+| Imperative tense                     | Start with "Get"                    | Past tense                   |
+| `EditPersionalInfoCommand`           | `GetListQuery`                      | `PersonalInfoChangedEvent`   |
+
+Another distinction between command and event is that a server can reject a command but not an event.
+
+<img src="Figures/CommandEventInOnion.PNG" style="zoom:50%;" />
+
+*Figure* Command and event in the onion architecture. Command and events are part of the core domain layer, whereas command handlers reside in the application services layer.
+
+#### Implement command handlers via reflection, DI container, and dynamic class
+
+The following code snippet from [CQRS in practice][cqrs in practice] demonstrates how to implement a command handler that can address all types of commands. The key is to leverage DI container, reflection, and dynamic class.
+
+- `ISerivedProvider` interface provides a way to access class registered in the DI container
+- `type.MakeGenericType(typeArgs)` demonstrates how to create a generic command handler via reflection
+- `dynamic handler` enables the `Message` class to address all types of command handlers. 
+
+
+
+```c#
+public sealed class Messages
+    {
+        private readonly IServiceProvider _provider;
+
+        public Messages(IServiceProvider provider)
+        {
+            _provider = provider;
+        }
+
+        public Result Dispatch(ICommand command)
+        {
+            Type type = typeof(ICommandHandler<>);
+            Type[] typeArgs = { command.GetType() };
+            Type handlerType = type.MakeGenericType(typeArgs);
+
+            dynamic handler = _provider.GetService(handlerType);
+            Result result = handler.Handle((dynamic)command);
+
+            return result;
+        }
+
+        public T Dispatch<T>(IQuery<T> query)
+        {
+            Type type = typeof(IQueryHandler<,>);
+            Type[] typeArgs = { query.GetType(), typeof(T) };
+            Type handlerType = type.MakeGenericType(typeArgs);
+
+            dynamic handler = _provider.GetService(handlerType);
+            T result = handler.Handle((dynamic)query);
+
+            return result;
+        }
+    }
+```
+
+#### Syncrhonization/Projection
+
+##### State-driven projection
+
+Flags in data tables, e.g., `IsSyncRequired`, `IsDirty`. A flag per each aggregate.
+
+Or, a dedicated `IsSyncRequired` table to offload the pressure.
+
+- Synchronous
+
+  - All changes are immediately consistent.
+  - Application waits until the persistency is completed.
+  - It does not scale.
+
+  Index views are examples synchronous projection. It is better to use the one database for read and write in this approach.
+
+- Asynchronous
+
+  Database replication is an example of asynchronous projection.
+
+<img src="Figures/StateDrivenProjection.PNG" style="zoom:60%;" />
+
+*Figure* When a command updates the write database, raise the `IsSyncRequired` flag; then sync with the read database; when completed, reset the `IsSyncRequired` flag.
+
+
+
+###### Two ways to implement the write database for state-driven synchronization
+
+- Database triggers
+
+  Choose this approach if the source code of domain model is not in control.
+
+  - Monitor all changes
+  - Implement a soft deletion (deletion as a modification): `IsDeleted` flag. 
+
+- Introduce flags in the domain model
+
+  This is the recommended approach if the source code of domain model is in control.
+
+  ```c#
+  public class Student : Entity
+  {
+      public virtual string Name { get; set; }
+      public virtual string Email { get; set; }
+      public virtual bool IsSyncRequired {get; private set;}
+      
+      public virtual void RemoveEnrollment(Enrollment enrollment, string comment)
+      {
+          ...
+          IsSyncRequired = true;
+      }
+  }
+  ```
+
+  
+
+  Override setters of properties to raise the `IsSyncRequired` flag whenever the client updates properties.  Some the following tools can achieve this: event listeners in NHibernate; change tracker in entity framework. An example can be found in section 7 of this [article](http://bit.ly/ef-vs-nh).
+
+##### Event-driven projection
+
+Domain events drive the changes; databases subscribe to domain events. 
+
+- Scale very well. A message bus can be used.
+- Unless domain events are stored,  it is impossible to rebuild the read database. If domain events are stored, the event sourcing pattern should be applied.
+
+#### Consistency
+
+Having two databases instead of one introduces latency.
+
+Ways to mitigate the potential conrfusion
+
+- Uniqueness constraints (unique ID)
+- Commands database is always immediately consistent
+
+Read operations may exist for the command database; it is part of the command processing flow and the result does not go across database boundary, e.g., before saving a new entry in the command database, the uniqueness constraint on certain property may need to be checked. This is different from running a query from the command handler which should be avoided. With event sourcing, there is no efficient way to query the current state of the write database; the client has to query the read database.
+
+##### Eventual consistency
+
+A consistency model which guarantees that, if no new updates are made to a given data item, eventually all accesses to that item will return the last updated value. 
+
+Tips: display helpful messages and set proper expectations; or store results locally. [Example: Starbuck doesn't use two-phase commit](http://bit.ly/starbucks-cons)
+
+Eventual consistency is problematic when the cost of making a decision based on the stale data is high, e.g., high-frequency trading.
+
+##### Versioning
+
+Keep a version in both read and write database. If a user tries to update stale data, display an error. This is called *optimistic concurrency control*.
+
+<img src="Figures/Versioning.PNG" style="zoom:60%;" />
+
+*Figure* Versioning
+
+#### CAP theorem
+
+It is impossible for distributed data store to simultaneously proved more than two out the three guarantees: consistency, availability, and partition tolerance.
+
+- Consistency means every read receives the most recent write or an error. 
+- Availability means that every request receives a response, apart from outage that affects all nodes in the system.
+- Partition tolerance means that the system continues to operate despite messages being dropped or delayed between network nodes.
+
+<img src="Figures/CAPTheorem.PNG" style="zoom:60%;" />
+
+*Figure* CAP theorem. Consistency + availability is a typical single node relational database; consistency + partition tolerance is an anti-pattern.
+
+CQRS allows you to make different choices for reads and writes. Trade off between consistency and partition tolerance.
+
+<img src="Figures/ConsistencyPartiionTradeOff.PNG" style="zoom:60%;" />
+
+*Figure* Trade off between consistency and partition tolerance.
+
+
+
+### Event sourcing
+
+Refer to this [course][cloud design pattern - data] by Barry Luibregts.
+
+Problems with storing current state of the data
+
+- Direct communication with database can slow down performance.
+- Data conflicts
+- Shaping data is difficult
+
+<img src="Figures/EventSourcing.PNG" style="zoom:60%;" />
+
+*Figure* Event sourcing and CQRS
+
+Event store keeps a complete history of data; it only appends events and hence no data conflicts. Easy to shape data for integration. The current state is obtained by replaying events for an entity. Event consumers only process event once. The event store is a production system and hence it should have a backup.
+
+Even sourcing is suitable for the following settings:
+
+- Capture purpose in data (e.g., deposit, withdraw)
+- Improve performance by *decoupling data input and processing*. 
+- Avoid or minimize data conflicts
+- Need complete data history
+
+Even sourcing is not suitable when your system:
+
+-  has a simple or small domain
+- implements strong transactional consistency
+
+When applying event sourcing you should consider the following:
+
+- production system
+  - available
+  - performant
+  - secure
+  - backup/restore/retention
+
+- lag in publishing and processing events (eventual consistency)
+- event sequence and versioning
+- complexity
+
+### Sharding
+
+
+
 ## References
 
 1. [C# SOLID Principles][solid_principles_course]
@@ -1001,3 +1045,4 @@ public sealed class ExceptionHandler
 [abstract factory]: https://refactoring.guru/design-patterns/abstract-factory
 [cqrs in practice]: https://app.pluralsight.com/library/courses/cqrs-in-practice/table-of-contents	" CQRS in practice"
 [greg young]: https://cqrs.files.wordpress.com/2010/11/cqrs_documents.pdf
+[cloud design pattern - data]: https://app.pluralsight.com/library/courses/azure-design-patterns-data-management-performance/table-of-contents

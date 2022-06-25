@@ -955,15 +955,15 @@ Keep a version in both read and write database. If a user tries to update stale 
 
 #### CAP theorem
 
-It is impossible for distributed data store to simultaneously proved more than two out the three guarantees: consistency, availability, and partition tolerance.
+It is impossible for distributed data store to simultaneously proved more than two out the three guarantees: consistency, availability, and partition tolerance. [More details][cap theorem]
 
 - Consistency means every read receives the most recent write or an error. 
 - Availability means that every request receives a response, apart from outage that affects all nodes in the system.
-- Partition tolerance means that the system continues to operate despite messages being dropped or delayed between network nodes.
+- Partition tolerance means that the system continues to operate despite messages being dropped or delayed between network nodes. (A *partition* is a communications break within a distributed system—a lost or temporarily delayed connection between two nodes ([IBM][cap theorem]))
 
 <img src="Figures/CAPTheorem.PNG" style="zoom:60%;" />
 
-*Figure* CAP theorem. Consistency + availability is a typical single node relational database; consistency + partition tolerance is an anti-pattern.
+*Figure* CAP theorem. Consistency + availability is a typical single node relational database. Partition tolerance is always required for a distributed system. CP system (e..g, Mongo) shuts down the node where network partitions occur to maintain the consistency.
 
 CQRS allows you to make different choices for reads and writes. Trade off between consistency and partition tolerance.
 
@@ -1046,3 +1046,4 @@ When applying event sourcing you should consider the following:
 [cqrs in practice]: https://app.pluralsight.com/library/courses/cqrs-in-practice/table-of-contents	" CQRS in practice"
 [greg young]: https://cqrs.files.wordpress.com/2010/11/cqrs_documents.pdf
 [cloud design pattern - data]: https://app.pluralsight.com/library/courses/azure-design-patterns-data-management-performance/table-of-contents
+[cap theorem]: https://www.ibm.com/cloud/learn/cap-theorem

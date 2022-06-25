@@ -989,7 +989,7 @@ Problems with storing current state of the data
 
 Event store keeps a complete history of data; it only appends events and hence no data conflicts. Easy to shape data for integration. The current state is obtained by replaying events for an entity. Event consumers only process event once. The event store is a production system and hence it should have a backup.
 
-Even sourcing is suitable for the following settings:
+##### Event sourcing is suitable for the following settings:
 
 - Capture purpose in data (e.g., deposit, withdraw)
 - Improve performance by *decoupling data input and processing*. 
@@ -1001,21 +1001,75 @@ Even sourcing is not suitable when your system:
 -  has a simple or small domain
 - implements strong transactional consistency
 
-When applying event sourcing you should consider the following:
+##### When applying event sourcing you should consider the following:
 
 - production system
   - available
   - performant
   - secure
   - backup/restore/retention
-
 - lag in publishing and processing events (eventual consistency)
 - event sequence and versioning
 - complexity
 
-### Sharding
+### Rules engine
 
+Refer to [this course][rules engine course] and [repo][rules engine demo] by Steve Smith.
 
+##### Introduction
+
+A rules engine is a behavioral design pattern that splits up conditional logic into explicit rule classes. Common use cases are: calculating scores/discounts, business logic calculation, etc.
+
+- A rules engine processes a set of rules and applies them to produce a result.
+- A rule describes a condition and may calculate a value.
+
+When a function contains complex conditional logic, it becomes difficult for extension and often increases the possibility to violate the Open/Closed Principle. The rule engine pattern solves extensibility of complex logic by adding new classes instead of modifying existing functions.
+
+##### Defining rules
+
+- Each rule you extract should follow Single Responsibility Principle
+- Rules are managed using an engine that chooses which rules to apply
+- Rules may be ordered, aggregated, or filtered as appropriate
+
+##### Working with rules
+
+- Keep individual rules simple
+- Allow for complexity through combinates of simple rules
+- Decide how rules will combine or be chosen
+- Consider whether rule ordering will matter in evaluation
+
+Considerations for rules
+
+- Typically read-only
+- Dependencies between rules
+- Explicit sequence or priority
+- Short-circuiting execution
+- Managing rules with persistence and UI
+
+##### Rules engine collaborators
+
+- Rule collection
+- Rules engine
+- System input
+
+<img src="Figures/RulesEngineStructure.PNG" alt="rules engine structure" style="zoom:60%;" />
+
+*Figure* Rules engine structure ([Steve Smith][rules engine course]) . For the rule class, `IsMatch` method is optional.
+
+##### Implementing a rules engine
+
+- Accept rules collection in engine constructor
+- Allow adding/removing rules or swapping sets of rules via methods
+- Apply the rules to a given context or system state
+- Choose correct rule to apply or aggregate rules
+
+##### Steps to apply rules engine
+
+- Follow refactoring fundamentals
+- Extract methods for individual conditions
+- Convert methods into rule classes
+- Create rule engine and evaluate rules
+- Replace original method logic with call to rules engine
 
 ## References
 
@@ -1047,3 +1101,5 @@ When applying event sourcing you should consider the following:
 [greg young]: https://cqrs.files.wordpress.com/2010/11/cqrs_documents.pdf
 [cloud design pattern - data]: https://app.pluralsight.com/library/courses/azure-design-patterns-data-management-performance/table-of-contents
 [cap theorem]: https://www.ibm.com/cloud/learn/cap-theorem
+[rules engine course]: https://app.pluralsight.com/library/courses/c-sharp-design-patterns-rules-pattern/table-of-contents
+[rules engine demo]: https://github.com/ardalis/DesignPatternsInCSharp/tree/master/DesignPatternsInCSharp/RulesEngine
